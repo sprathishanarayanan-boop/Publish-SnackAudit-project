@@ -1,0 +1,3039 @@
+{
+  "info": {
+    "name": "TicketForge – Event & Ticket Reservation API",
+    "description": "End-to-end suite: auth/RBAC, multi-tenant isolation, Redis caching, concurrent booking races, async payments and expired holds.\n\nSet `baseUrl` (collection variable) to your deployment, then run the whole collection in order with the Collection Runner.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('DB and Redis are up', () => { const b = pm.response.json(); pm.expect(b.db).to.equal('up'); pm.expect(b.redis).to.equal('up'); });",
+                  "pm.test('Hold length is configured', () => pm.expect(pm.response.json().holdMinutes).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Auth & sessions",
+      "item": [
+        {
+          "name": "Login – admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Role is admin', () => pm.expect(pm.response.json().user.role).to.equal('admin'));",
+                  "pm.collectionVariables.set('adminToken', pm.response.json().token);",
+                  "pm.collectionVariables.set('adminId', pm.response.json().user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ticketforge.dev\",\n  \"password\": \"Admin@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login – organizer (Chennai Live Co)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Organizer belongs to a tenant', () => pm.expect(pm.response.json().user.organizationId).to.be.a('string'));",
+                  "pm.collectionVariables.set('orgToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"organizer@ticketforge.dev\",\n  \"password\": \"Organizer@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login – organizer 2 (Bengaluru Tech Events)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.collectionVariables.set('org2Token', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"organizer2@ticketforge.dev\",\n  \"password\": \"Organizer@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register attendee A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.test('Default role is attendee', () => pm.expect(pm.response.json().user.role).to.equal('attendee'));",
+                  "pm.collectionVariables.set('attToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA Attendee A\",\n  \"email\": \"qa.a.{{$timestamp}}@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register attendee B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.collectionVariables.set('att2Token', pm.response.json().token);",
+                  "pm.collectionVariables.set('att2Id', pm.response.json().user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA Attendee B\",\n  \"email\": \"qa.b.{{$timestamp}}@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register – duplicate email → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is EMAIL_TAKEN', () => pm.expect(pm.response.json().error.code).to.equal('EMAIL_TAKEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dup\",\n  \"email\": \"attendee@ticketforge.dev\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Register organizer without organization → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.expect(pm.response.code).to.equal(400));",
+                  "pm.test('Validation points at organizationName', () => pm.expect(JSON.stringify(pm.response.json().error.details)).to.include('organizationName'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"No Org\",\n  \"email\": \"noorg.{{$timestamp}}@example.com\",\n  \"password\": \"Passw0rd!\",\n  \"role\": \"organizer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login – wrong password → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.expect(pm.response.code).to.equal(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"attendee@ticketforge.dev\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Me – no token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.expect(pm.response.code).to.equal(401));",
+                  "pm.test('Error code is UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.equal('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Me – tampered/invalid session token → 401",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('badToken', pm.collectionVariables.get('attToken') + 'tampered');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.expect(pm.response.code).to.equal(401));",
+                  "pm.test('Error code is INVALID_TOKEN', () => pm.expect(pm.response.json().error.code).to.equal('INVALID_TOKEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{badToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Me – valid token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Returns the user', () => pm.expect(pm.response.json().user.email).to.include('qa.a.'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Event management (Organizer) + RBAC + caching",
+      "item": [
+        {
+          "name": "Attendee cannot create events → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));",
+                  "pm.test('Error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.equal('FORBIDDEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Nope\",\n  \"startsAt\": \"2030-01-01T10:00:00Z\",\n  \"salesEndAt\": \"2029-12-31T10:00:00Z\",\n  \"tiers\": [\n    {\n      \"name\": \"GA\",\n      \"priceCents\": 100,\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create event – sales cut-off after start → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.expect(pm.response.code).to.equal(400));",
+                  "pm.test('Error code is BAD_REQUEST', () => pm.expect(pm.response.json().error.code).to.equal('BAD_REQUEST'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Invalid dates\",\n  \"startsAt\": \"2030-01-01T10:00:00Z\",\n  \"salesEndAt\": \"2030-01-02T10:00:00Z\",\n  \"tiers\": [\n    {\n      \"name\": \"GA\",\n      \"priceCents\": 100,\n      \"quantity\": 5\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create event with VIP + GA tiers (published)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const start = new Date(Date.now() + 20 * 864e5);",
+                  "pm.collectionVariables.set('startsAt', start.toISOString());",
+                  "pm.collectionVariables.set('salesEndAt', new Date(start.getTime() - 864e5).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const e = pm.response.json().event;",
+                  "pm.test('Two tiers with correct inventory', () => { pm.expect(e.tiers).to.have.lengthOf(2); pm.expect(e.tiers[0].available).to.equal(4); pm.expect(e.tiers[1].available).to.equal(10); });",
+                  "pm.test('Published with sales cut-off', () => { pm.expect(e.status).to.equal('published'); pm.expect(e.salesEndAt).to.be.a('string'); });",
+                  "pm.collectionVariables.set('eventId', e.id);",
+                  "pm.collectionVariables.set('vipTierId', e.tiers[0].id);",
+                  "pm.collectionVariables.set('gaTierId', e.tiers[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman QA Concert\",\n  \"description\": \"Created by the Postman suite\",\n  \"venue\": \"Test Arena\",\n  \"startsAt\": \"{{startsAt}}\",\n  \"salesEndAt\": \"{{salesEndAt}}\",\n  \"publish\": true,\n  \"tiers\": [\n    {\n      \"name\": \"VIP\",\n      \"priceCents\": 250000,\n      \"quantity\": 4,\n      \"seatPrefix\": \"VIP\"\n    },\n    {\n      \"name\": \"General Admission\",\n      \"priceCents\": 50000,\n      \"quantity\": 10,\n      \"seatPrefix\": \"GA\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create draft event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.test('Status is draft', () => pm.expect(pm.response.json().event.status).to.equal('draft'));",
+                  "pm.collectionVariables.set('draftEventId', pm.response.json().event.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman Draft Event\",\n  \"startsAt\": \"{{startsAt}}\",\n  \"salesEndAt\": \"{{salesEndAt}}\",\n  \"tiers\": [\n    {\n      \"name\": \"GA\",\n      \"priceCents\": 1000,\n      \"quantity\": 5\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Tenant isolation – organizer 2 cannot edit organizer 1 event → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));",
+                  "pm.test('Error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.equal('FORBIDDEN'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"venue\": \"Hijacked\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update event venue (owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Venue updated', () => pm.expect(pm.response.json().event.venue).to.equal('Test Arena, Hall 2'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"venue\": \"Test Arena, Hall 2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get event (warms Redis cache)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('X-Cache header present', () => pm.expect(pm.response.headers.get('X-Cache')).to.be.oneOf(['HIT', 'MISS']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get event again → served from Redis (X-Cache: HIT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Event details served from cache', () => pm.expect(pm.response.headers.get('X-Cache')).to.equal('HIT'));",
+                  "pm.test('Cache reflects the latest edit', () => pm.expect(pm.response.json().event.venue).to.equal('Test Arena, Hall 2'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List published events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('New event is listed', () => pm.expect(pm.response.json().events.map((e) => e.id)).to.include(pm.collectionVariables.get('eventId')));",
+                  "pm.test('Draft is not listed', () => pm.expect(pm.response.json().events.map((e) => e.id)).to.not.include(pm.collectionVariables.get('draftEventId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Draft event hidden from public → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.expect(pm.response.code).to.equal(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{draftEventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{draftEventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Seat map",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const seats = pm.response.json().seats;",
+                  "pm.test('14 seats generated', () => pm.expect(seats).to.have.lengthOf(14));",
+                  "const vip = seats.filter((s) => s.tierId === pm.collectionVariables.get('vipTierId'));",
+                  "pm.collectionVariables.set('seat1', vip[0].id);",
+                  "pm.collectionVariables.set('seat2', vip[1].id);",
+                  "pm.collectionVariables.set('seat3', vip[2].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/seats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "seats"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Reservation engine (10-minute holds)",
+      "item": [
+        {
+          "name": "Hold on a draft event → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.expect(pm.response.code).to.equal(422));",
+                  "pm.test('Error code is EVENT_NOT_ON_SALE', () => pm.expect(pm.response.json().error.code).to.equal('EVENT_NOT_ON_SALE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"tierId\": \"{{gaTierId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{draftEventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{draftEventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Organizer cannot book tickets (RBAC) → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat1}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ambiguous body (seats AND quantities) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat1}}\"\n  ],\n  \"items\": [\n    {\n      \"tierId\": \"{{gaTierId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Too many tickets in one order → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.expect(pm.response.code).to.equal(422));",
+                  "pm.test('Error code is TOO_MANY_TICKETS', () => pm.expect(pm.response.json().error.code).to.equal('TOO_MANY_TICKETS'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"tierId\": \"{{gaTierId}}\",\n      \"quantity\": 11\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee A holds VIP seat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const o = pm.response.json().order;",
+                  "pm.test('Order is pending with a 10-minute hold', () => { pm.expect(o.status).to.equal('pending'); pm.expect(o.secondsRemaining).to.be.above(0); pm.expect(o.secondsRemaining).to.be.at.most(600); });",
+                  "pm.test('Seat is held and priced', () => { pm.expect(o.items[0].status).to.equal('held'); pm.expect(o.totalCents).to.equal(250000); });",
+                  "pm.collectionVariables.set('orderId', o.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat1}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee B tries the same seat → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is SEATS_UNAVAILABLE', () => pm.expect(pm.response.json().error.code).to.equal('SEATS_UNAVAILABLE'));",
+                  "pm.test('Response names the taken seat', () => pm.expect(pm.response.json().error.details.seats).to.include('VIP-1'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat1}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee A second hold on same event → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is ACTIVE_HOLD_EXISTS', () => pm.expect(pm.response.json().error.code).to.equal('ACTIVE_HOLD_EXISTS'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat2}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Availability counts update immediately (cache invalidated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('VIP shows 1 held, 3 available', () => { const t = pm.response.json().event.tiers[0]; pm.expect(t.held).to.equal(1); pm.expect(t.available).to.equal(3); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CONCURRENT – 8 buyers race for one seat (exactly 1 wins)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "const ts = Date.now();",
+                  "Promise.all([...Array(8).keys()].map((i) => call('POST', '/api/auth/register', null, { name: 'Racer ' + i, email: 'racer' + i + '.' + ts + '@example.com', password: 'Passw0rd!' })))",
+                  "  .then((rs) => pm.collectionVariables.set('racers', JSON.stringify(rs.map((r) => r.body.token))));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "const tokens = JSON.parse(pm.collectionVariables.get('racers'));",
+                  "const ev = pm.collectionVariables.get('eventId');",
+                  "(async () => {",
+                  "  const results = await Promise.all(tokens.map((t) => call('POST', '/api/events/' + ev + '/holds', t, { ticketIds: [pm.collectionVariables.get('seat2')] })));",
+                  "  const wins = results.filter((r) => r.code === 201);",
+                  "  const lost = results.filter((r) => r.code === 409 && r.body.error.code === 'SEATS_UNAVAILABLE');",
+                  "  pm.test('Exactly one hold succeeded', () => pm.expect(wins.length).to.equal(1));",
+                  "  pm.test('Seven got 409 SEATS_UNAVAILABLE', () => pm.expect(lost.length).to.equal(7));",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/seats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "seats"
+              ]
+            },
+            "description": "Pre-request registers 8 buyers. The test script fires 8 hold requests for VIP-2 in parallel with pm.sendRequest and asserts exactly one 201 and seven 409 SEATS_UNAVAILABLE."
+          }
+        },
+        {
+          "name": "CONCURRENT – 12 buyers race for 10 GA tickets (no oversell)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "const ts = Date.now();",
+                  "Promise.all([...Array(12).keys()].map((i) => call('POST', '/api/auth/register', null, { name: 'GA ' + i, email: 'ga' + i + '.' + ts + '@example.com', password: 'Passw0rd!' })))",
+                  "  .then((rs) => pm.collectionVariables.set('gaBuyers', JSON.stringify(rs.map((r) => r.body.token))));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "const tokens = JSON.parse(pm.collectionVariables.get('gaBuyers'));",
+                  "const ev = pm.collectionVariables.get('eventId');",
+                  "(async () => {",
+                  "  const results = await Promise.all(tokens.map((t) => call('POST', '/api/events/' + ev + '/holds', t, { items: [{ tierId: pm.collectionVariables.get('gaTierId'), quantity: 1 }] })));",
+                  "  const wins = results.filter((r) => r.code === 201);",
+                  "  const seats = wins.map((r) => r.body.order.items[0].seat);",
+                  "  pm.test('Exactly 10 holds succeeded', () => pm.expect(wins.length).to.equal(10));",
+                  "  pm.test('All 10 seats are distinct', () => pm.expect(new Set(seats).size).to.equal(10));",
+                  "  pm.test('2 buyers got INSUFFICIENT_INVENTORY', () => pm.expect(results.filter((r) => r.code === 409 && r.body.error.code === 'INSUFFICIENT_INVENTORY').length).to.equal(2));",
+                  "  const map = (await call('GET', '/api/events/' + ev + '/seats')).body.seats.filter((s) => s.tierId === pm.collectionVariables.get('gaTierId'));",
+                  "  pm.test('GA tier fully held, nothing double-booked', () => pm.expect(map.filter((s) => s.status === 'held').length).to.equal(10));",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/seats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "seats"
+              ]
+            },
+            "description": "12 parallel quantity-based holds against a 10-seat tier. Uses FOR UPDATE SKIP LOCKED: exactly 10 succeed with 10 distinct seats; 2 get 409 INSUFFICIENT_INVENTORY."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Checkout & async payment gateway",
+      "item": [
+        {
+          "name": "Another attendee cannot pay someone else's order → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.expect(pm.response.code).to.equal(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"4242424242424242\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invalid card format → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Checkout with declining card → 202, then rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.expect(pm.response.code).to.equal(202));",
+                  "pm.test('Order is processing', () => pm.expect(pm.response.json().order.status).to.equal('processing'));",
+                  "",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "const id = pm.collectionVariables.get('orderId');",
+                  "const tok = pm.collectionVariables.get('attToken');",
+                  "(async () => {",
+                  "  const dbl = await call('POST', '/api/orders/' + id + '/checkout', tok, { cardNumber: '4242424242424242' });",
+                  "  pm.test('Second checkout while processing → 409', () => { pm.expect(dbl.code).to.equal(409); pm.expect(dbl.body.error.code).to.be.oneOf(['PAYMENT_IN_PROGRESS', 'CHECKOUT_IN_PROGRESS']); });",
+                  "  const o = await pollOrder(id, tok, 'processing');",
+                  "  pm.test('Gateway rejected asynchronously; hold kept for retry', () => { pm.expect(o.status).to.equal('pending'); pm.expect(o.lastTransaction.status).to.equal('rejected'); pm.expect(o.lastTransaction.failureReason).to.equal('card_declined'); });",
+                  "  pm.test('Seat still held', () => pm.expect(o.items[0].status).to.equal('held'));",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"4000000000000002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Retry with approving card → 202, then paid",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.expect(pm.response.code).to.equal(202));",
+                  "",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "function call(method, p, token, body) {",
+                  "  return new Promise((resolve) => pm.sendRequest({",
+                  "    url: base + p, method,",
+                  "    header: [{ key: 'Content-Type', value: 'application/json' }].concat(token ? [{ key: 'Authorization', value: 'Bearer ' + token }] : []),",
+                  "    body: body ? { mode: 'raw', raw: JSON.stringify(body) } : undefined",
+                  "  }, (err, res) => resolve(err ? { code: 0, body: {} } : { code: res.code, body: res.json() })));",
+                  "}",
+                  "const sleep = (ms) => new Promise((r) => setTimeout(r, ms));",
+                  "async function pollOrder(id, token, notStatus) {",
+                  "  let o;",
+                  "  for (let i = 0; i < 20; i++) { await sleep(500); o = (await call('GET', '/api/orders/' + id, token)).body.order; if (o && o.status !== notStatus) break; }",
+                  "  return o;",
+                  "}",
+                  "(async () => {",
+                  "  const o = await pollOrder(pm.collectionVariables.get('orderId'), pm.collectionVariables.get('attToken'), 'processing');",
+                  "  pm.test('Order paid', () => pm.expect(o.status).to.equal('paid'));",
+                  "  pm.test('Seat sold', () => pm.expect(o.items[0].status).to.equal('sold'));",
+                  "  pm.test('Transaction approved', () => pm.expect(o.lastTransaction.status).to.equal('approved'));",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"4242424242424242\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pay again after paid → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is ALREADY_PAID', () => pm.expect(pm.response.json().error.code).to.equal('ALREADY_PAID'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"4242424242424242\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel a paid order → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is ORDER_NOT_PENDING', () => pm.expect(pm.response.json().error.code).to.equal('ORDER_NOT_PENDING'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/hold",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "hold"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forged gateway webhook → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.expect(pm.response.code).to.equal(401));",
+                  "pm.test('Error code is INVALID_SIGNATURE', () => pm.expect(pm.response.json().error.code).to.equal('INVALID_SIGNATURE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"ch_fake\",\n  \"reference\": \"00000000-0000-0000-0000-000000000000\",\n  \"status\": \"approved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/webhook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments",
+                "webhook"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mock gateway – direct charge returns 202 Accepted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.expect(pm.response.code).to.equal(202));",
+                  "pm.test('Charge id issued', () => pm.expect(pm.response.json().id).to.include('ch_'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountCents\": 1000,\n  \"cardNumber\": \"4000000000000119\",\n  \"reference\": \"manual-test\",\n  \"callbackUrl\": \"http://127.0.0.1:1/never\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/mock-gateway/charges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "mock-gateway",
+                "charges"
+              ]
+            }
+          }
+        },
+        {
+          "name": "My orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Contains the paid order', () => pm.expect(pm.response.json().orders.map((o) => o.status)).to.include('paid'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Expired sessions & background hold release",
+      "item": [
+        {
+          "name": "Attendee B holds VIP seat 3",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.collectionVariables.set('order2Id', pm.response.json().order.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat3}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[test hook] Fast-forward hold past 10 minutes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/orders/{{order2Id}}/force-expire",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "orders",
+                "{{order2Id}}",
+                "force-expire"
+              ]
+            },
+            "description": "Admin-only test route (disable with ENABLE_TEST_ROUTES=false) so the suite does not have to wait 10 minutes."
+          }
+        },
+        {
+          "name": "Checkout after hold expired → 410 Gone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 410', () => pm.expect(pm.response.code).to.equal(410));",
+                  "pm.test('Error code is HOLD_EXPIRED', () => pm.expect(pm.response.json().error.code).to.equal('HOLD_EXPIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardNumber\": \"4242424242424242\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{order2Id}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order2Id}}",
+                "checkout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Expired order shows status expired",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Status expired, 0 seconds left', () => { pm.expect(pm.response.json().order.status).to.equal('expired'); pm.expect(pm.response.json().order.secondsRemaining).to.equal(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{order2Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order2Id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Seat is back on sale",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('VIP-3 available again', () => pm.expect(pm.response.json().seats.find((s) => s.id === pm.collectionVariables.get('seat3')).status).to.equal('available'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/seats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "seats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee B holds seat 3 again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.collectionVariables.set('order3Id', pm.response.json().order.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat3}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[test hook] Fast-forward this hold",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/orders/{{order3Id}}/force-expire",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "orders",
+                "{{order3Id}}",
+                "force-expire"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run background release job now",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Job expired at least one hold', () => pm.expect(pm.response.json().result.expiredOrders).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/jobs/release-holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "jobs",
+                "release-holds"
+              ]
+            },
+            "description": "The same job runs automatically every 30 s; this endpoint triggers it on demand."
+          }
+        },
+        {
+          "name": "Order released by the worker is expired",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Status expired', () => pm.expect(pm.response.json().order.status).to.equal('expired'));",
+                  "pm.test('Seat returned to inventory', () => pm.expect(pm.response.json().order.items[0].status).to.equal('available'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{order3Id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order3Id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee B holds seat 3, then cancels",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.expect(pm.response.code).to.equal(201));",
+                  "pm.collectionVariables.set('order4Id', pm.response.json().order.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticketIds\": [\n    \"{{seat3}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "holds"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel hold releases seat immediately",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Cancelled + seat available', () => { const o = pm.response.json().order; pm.expect(o.status).to.equal('cancelled'); pm.expect(o.items[0].status).to.equal('available'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{att2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{order4Id}}/hold",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{order4Id}}",
+                "hold"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Analytics dashboard",
+      "item": [
+        {
+          "name": "Organizer analytics (24h)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Revenue includes the paid VIP order', () => pm.expect(b.totals.revenueCents).to.be.at.least(250000));",
+                  "pm.test('24 hourly buckets', () => pm.expect(b.series).to.have.lengthOf(24));",
+                  "pm.test('Conversion metrics present', () => { pm.expect(b.totals.holdToPaidPct).to.be.a('number'); pm.expect(b.totals.checkoutToPaidPct).to.be.a('number'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/analytics?range=24h",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "24h"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Analytics for one event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('Scoped to the event', () => pm.expect(b.events).to.have.lengthOf(1));",
+                  "pm.test('1 sold, revenue 2500.00', () => { pm.expect(b.totals.ticketsSold).to.equal(1); pm.expect(b.totals.revenueCents).to.equal(250000); });",
+                  "pm.test('Funnel counts declined payment', () => pm.expect(b.funnel.rejected_payments).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/analytics?eventId={{eventId}}&range=24h",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                },
+                {
+                  "key": "range",
+                  "value": "24h"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Organizer 2 cannot read organizer 1's analytics → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{org2Token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/analytics?eventId={{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "analytics"
+              ],
+              "query": [
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee cannot access analytics → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/analytics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "analytics"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Organizer – orders for an event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Includes the paid order', () => pm.expect(pm.response.json().orders.map((o) => o.id)).to.include(pm.collectionVariables.get('orderId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "orders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin",
+      "item": [
+        {
+          "name": "Platform stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Has revenue and users', () => { pm.expect(pm.response.json().stats.users).to.be.above(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List organizations (tenants)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('At least 2 tenants', () => pm.expect(pm.response.json().organizations.length).to.be.at.least(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "organizations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Attendee cannot use admin API → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{attToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Organizer cannot use admin API → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.expect(pm.response.code).to.equal(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{orgToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Promote to organizer without organization → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"organizer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{att2Id}}/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{att2Id}}",
+                "role"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Admin cannot demote themselves → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.expect(pm.response.code).to.equal(409));",
+                  "pm.test('Error code is SELF_DEMOTION', () => pm.expect(pm.response.json().error.code).to.equal('SELF_DEMOTION'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"attendee\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{adminId}}/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{adminId}}",
+                "role"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+# Render Blueprint: one web service (API + React build), PostgreSQL, and Redis (Key Value).
+# Deploy: Render dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: ticketforge
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ticketforge-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ticketforge-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GATEWAY_WEBHOOK_SECRET
+        generateValue: true
+      - key: HOLD_MINUTES
+        value: "10"
+      - key: SEED_DEMO
+        value: "true"
+
+  - type: keyvalue
+    name: ticketforge-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []   # internal connections only
+
+databases:
+  - name: ticketforge-db
+    plan: free
+    databaseName: ticketforge
+    user: ticketforge

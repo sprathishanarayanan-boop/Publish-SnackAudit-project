@@ -1,0 +1,27 @@
+{
+  "name": "ticketforge",
+  "version": "1.0.0",
+  "description": "Multi-tenant event & ticket reservation system with concurrency-safe seat holds",
+  "main": "server/src/server.js",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/src/server.js",
+    "dev": "node --watch server/src/server.js",
+    "worker": "node server/src/worker.js",
+    "migrate": "node server/src/migrate.js",
+    "seed": "node server/src/seed.js",
+    "build": "npm install --prefix client --include=dev && npm run build --prefix client",
+    "test:concurrency": "node scripts/concurrency-test.js",
+    "test:postman": "node scripts/run-postman.js postman/TicketForge.postman_collection.json",
+    "test": "node scripts/run-postman.js postman/TicketForge.postman_collection.json && node scripts/concurrency-test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ioredis": "^5.4.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  }
+}

@@ -1,0 +1,85 @@
+erDiagram
+    ORGANIZATIONS ||--o{ USERS : "employs (organizers)"
+    ORGANIZATIONS ||--o{ EVENTS : "owns (tenant)"
+    USERS ||--o{ EVENTS : "created_by"
+    EVENTS ||--|{ TICKET_TIERS : "offers"
+    TICKET_TIERS ||--|{ TICKETS : "one row per seat"
+    EVENTS ||--o{ TICKETS : "has"
+    USERS ||--o{ ORDERS : "places"
+    EVENTS ||--o{ ORDERS : "for"
+    ORDERS ||--|{ ORDER_ITEMS : "contains"
+    TICKETS ||--o{ ORDER_ITEMS : "appears in"
+    ORDERS |o--o{ TICKETS : "currently holds/owns"
+    ORDERS ||--o{ TRANSACTIONS : "paid via"
+
+    ORGANIZATIONS {
+        uuid id PK
+        text name
+        text slug UK
+        timestamptz created_at
+    }
+    USERS {
+        uuid id PK
+        uuid organization_id FK "required when role = organizer"
+        text email UK
+        text password_hash "scrypt"
+        text name
+        enum role "admin | organizer | attendee"
+        timestamptz created_at
+    }
+    EVENTS {
+        uuid id PK
+        uuid organization_id FK
+        uuid created_by FK
+        text title
+        text description
+        text venue
+        timestamptz starts_at
+        timestamptz sales_end_at "sales cut-off, <= starts_at"
+        enum status "draft | published | cancelled"
+        timestamptz updated_at
+    }
+    TICKET_TIERS {
+        uuid id PK
+        uuid event_id FK
+        text name "VIP, General Admission"
+        int price_cents
+        int quantity
+        text seat_prefix
+        int sort_order
+    }
+    TICKETS {
+        uuid id PK
+        uuid event_id FK
+        uuid tier_id FK
+        text seat_label UK "unique per event, e.g. VIP-3"
+        int seat_number
+        enum status "available | held | sold  (row-locked with FOR UPDATE)"
+        uuid order_id FK "current holder"
+        timestamptz held_until
+    }
+    ORDERS {
+        uuid id PK
+        uuid user_id FK
+        uuid event_id FK
+        enum status "pending | processing | paid | failed | expired | cancelled"
+        int total_cents
+        timestamptz expires_at "created_at + 10 min"
+        timestamptz paid_at
+    }
+    ORDER_ITEMS {
+        uuid order_id PK,FK
+        uuid ticket_id PK,FK
+        uuid tier_id FK
+        int price_cents "price snapshot"
+    }
+    TRANSACTIONS {
+        uuid id PK
+        uuid order_id FK "max one processing/approved per order"
+        int amount_cents
+        enum status "processing | approved | rejected"
+        text gateway_ref UK
+        text card_last4
+        text failure_reason
+        timestamptz created_at
+    }
