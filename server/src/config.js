@@ -1,3 +1,17 @@
+const fs = require('fs');
+const path = require('path');
+
+// Load a .env file from the project root if present (real environment variables win).
+const envFile = path.join(__dirname, '..', '..', '.env');
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m && !line.trim().startsWith('#') && process.env[m[1]] === undefined) {
+      process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    }
+  }
+}
+
 const env = process.env;
 
 const port = Number(env.PORT || 4000);
