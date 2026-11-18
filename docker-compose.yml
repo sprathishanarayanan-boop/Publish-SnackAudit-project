@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orderto_audit
+    volumes:
+      - audit-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orderto_audit"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://postgres:postgres@db:5432/orderto_audit
+      JWT_SECRET: local-demo-secret-change-before-deploying
+      FACTORY_STATE: Tamil Nadu
+      FACTORY_GSTIN: 33AABCU9603R1ZM
+      SEED_DEMO: "true"
+    ports:
+      - "4001:4000"
+volumes:
+  audit-db:

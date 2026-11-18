@@ -1,0 +1,20 @@
+{
+  "name": "orderto-audit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Order-to-audit system for a small food manufacturer",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/src/server.js",
+    "dev": "node --watch server/src/server.js",
+    "migrate": "node server/src/migrate.js",
+    "seed": "node server/src/seed.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

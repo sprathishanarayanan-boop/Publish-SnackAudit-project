@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: orderto-audit
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: orderto-audit-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FACTORY_STATE
+        value: Tamil Nadu
+      - key: FACTORY_GSTIN
+        value: 33AABCU9603R1ZM
+      - key: SEED_DEMO
+        value: "true"
+
+databases:
+  - name: orderto-audit-db
+    plan: free
+    databaseName: orderto_audit
+    user: orderto_audit
